@@ -1,25 +1,51 @@
-name: Build ROM
+name: Build Samsung Galaxy A52
+
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+
 jobs:
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    
     steps:
-    - name: Setup
-      run: sudo apt-get update && sudo apt-get install -y git repo openjdk-11-jdk bison flex build-essential zip curl ccache
-    - name: Build
+    - name: Setup Environment
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y git repo openjdk-11-jdk bison flex build-essential zip curl ccache python3 rsync bc
+        
+    - name: Initialize Android Source
       run: |
         mkdir -p ~/android && cd ~/android
         repo init -u https://github.com/LineageOS/android.git -b lineage-21.0 --depth=1
-        repo sync -j$(nproc) -c --no-tags --no-clone-bundle
+        
+    - name: Sync Sources
+      run: cd ~/android && repo sync -j$(nproc) -c --no-tags --no-clone-bundle
+      timeout-minutes: 120
+      
+    - name: Clone Device Sources
+      run: |
+        cd ~/android
         git clone https://github.com/LineageOS/android_device_samsung_a52q device/samsung/a52q
         git clone https://github.com/LineageOS/android_kernel_samsung_sm7125 kernel/samsung/a52q
         git clone https://github.com/TheMuppets/proprietary_vendor_samsung_a52q vendor/samsung/a52q
+        
+    - name: Build ROM
+      run: |
+        cd ~/android
+        export USE_CCACHE=1
+        ccache -M 50G
         source build/envsetup.sh
         lunch lineage_a52q-userdebug
-        make bacon -j$(nproc)
-    - name: Upload
+        make bacon -j$(nproc --all)
+      timeout-minutes: 200
+      
+    - name: Upload ROM
+      if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: ROM
+        name: ROM-a52q
         path: ~/android/out/target/product/a52q/*.zip
+        retention-days: 90
