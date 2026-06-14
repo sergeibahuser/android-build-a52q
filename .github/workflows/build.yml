@@ -1,0 +1,25 @@
+name: Build ROM
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Setup
+      run: sudo apt-get update && sudo apt-get install -y git repo openjdk-11-jdk bison flex build-essential zip curl ccache
+    - name: Build
+      run: |
+        mkdir -p ~/android && cd ~/android
+        repo init -u https://github.com/LineageOS/android.git -b lineage-21.0 --depth=1
+        repo sync -j$(nproc) -c --no-tags --no-clone-bundle
+        git clone https://github.com/LineageOS/android_device_samsung_a52q device/samsung/a52q
+        git clone https://github.com/LineageOS/android_kernel_samsung_sm7125 kernel/samsung/a52q
+        git clone https://github.com/TheMuppets/proprietary_vendor_samsung_a52q vendor/samsung/a52q
+        source build/envsetup.sh
+        lunch lineage_a52q-userdebug
+        make bacon -j$(nproc)
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: ROM
+        path: ~/android/out/target/product/a52q/*.zip
